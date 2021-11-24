@@ -1,0 +1,281 @@
+package rs.ac.bg.etf.pp1;
+
+import java_cup.runtime.*;
+import org.apache.log4j.*;
+
+// import java.io.*;
+import rs.ac.bg.etf.pp1.ast.*;
+
+
+parser code {:
+	
+	boolean errorDetected = false;
+	
+	Logger log = Logger.getLogger(getClass());
+   
+   
+    // slede redefinisani metodi za prijavu gresaka radi izmene teksta poruke
+     
+    public void report_fatal_error(String message, Object info) throws java.lang.Exception {
+      done_parsing();
+      report_error(message, info);
+    }
+  
+    public void syntax_error(Symbol cur_token) {
+        report_error("\nSintaksna greska", cur_token);
+    }
+  
+    public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception {
+        report_fatal_error("Fatalna greska, parsiranje se ne moze nastaviti", cur_token);
+    }
+
+    public void report_error(String message, Object info) {
+    	errorDetected = true;
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left);
+        log.error(msg.toString());
+    }
+    
+    public void report_info(String message, Object info) {
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left);
+        log.info(msg.toString());
+    }
+    
+:}
+
+scan with {:
+	Symbol s = this.getScanner().next_token();
+	if (s != null && s.value != null) 
+		log.info(s.toString() + " " + s.value.toString());
+	return s;
+:}
+
+
+terminal PROG, LBRACE, RBRACE, SEMI, LPAREN, RPAREN, COMMA, PRINT, RETURN, PLUS, EQUAL, VOID, VLINE, REPL, HASH;
+terminal MINUS, MUL, DIV, INC, DEC, DOT, MOD, CONST, READ, NEW, QUE, COL, AT, FINAL, GOTO, DOL, CAP;
+terminal LSQUARE, RSQUARE, GT, LT, GE, LE, EQ, NE;
+terminal Integer NUMCONST ;
+terminal String IDENT ;
+terminal Character CHARCONST;
+terminal Boolean BOOLCONST;
+
+
+nonterminal Program, MethodDeclList, FormParsList, StatementList;
+nonterminal ConstDecl, VarDecl, MethodDecl, VarDeclList, Relop;
+nonterminal DeclList, DeclElem, Statement, DesignatorStatement;
+nonterminal TypeOrVoid, ActPars, OptFinal;
+nonterminal VarElem, VarList, ExprList, Addop, Mulop;
+nonterminal ConstList, ConstElem, FormPars, FormParsElem, DesignatorArrayHelp;
+
+nonterminal rs.etf.pp1.symboltable.concepts.Obj ProgramName, MethodType, ConstElemExt, Designator, CondFact, ExprCol;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Type, Expr, ExprElem, Term, Factor;
+
+Program ::= (Program) PROG ProgramName DeclList LBRACE MethodDeclList RBRACE;
+
+ProgramName ::= (ProgramName) IDENT:name;
+
+Type ::= (Type) IDENT:name;
+
+ConstDecl ::= (ConstDecl) CONST Type ConstList SEMI; 
+
+ConstList ::= ConstList COMMA ConstElem 
+			  |
+			  ConstElem
+			  ;
+
+ConstElem ::= (ConstElem) IDENT:name EQUAL ConstElemExt;
+			  
+ConstElemExt ::= (NumberConst) NUMCONST:val
+			     |
+			     (CharConst) CHARCONST:val
+			     |
+			     (BoolConst) BOOLCONST:val
+			     ; 
+
+VarDecl ::= (VarDeclNoError) OptFinal Type VarList SEMI 
+			|
+			(VarDeclError) OptFinal Type error SEMI
+			;
+			
+OptFinal ::= (YesOptFinal) FINAL
+			|
+			 (NoOptFinal)
+			;
+
+VarElem ::= (VarElemNoArray) IDENT:name 
+			|
+			(VarElemArray) IDENT:name LSQUARE RSQUARE 
+			;
+
+VarList ::= VarList COMMA VarElem
+			|
+			(VarListError) error COMMA VarElem
+			|
+			VarElem
+			;
+
+DeclElem ::= ConstDecl | VarDecl;
+
+DeclList ::= DeclList DeclElem
+			 |
+			 ;
+			 
+MethodDeclList ::= MethodDeclList MethodDecl
+				  |
+				  ;
+				 
+MethodDecl ::= (MethodDecl) MethodType LPAREN FormPars RPAREN VarDeclList LBRACE StatementList RBRACE
+				;
+
+VarDeclList ::= VarDeclList VarDecl
+				|
+				;
+			 
+MethodType ::= (MethodType) TypeOrVoid IDENT:name
+				;
+
+TypeOrVoid ::= (ReturnType) Type
+			   |
+			   (ReturnVoid) VOID
+			   ;
+
+FormPars ::= (FormParams) FormParsList
+			 |
+			 (NoFormParams)
+			 ;
+			 
+FormParsList ::= FormParsList COMMA FormParsElem
+			     |
+			     FormParsElem
+			     ;
+			     
+FormParsElem ::= (FormParsDeclnoArray) Type IDENT:name
+				 |
+				 (FormParsDeclArray) Type IDENT:name LSQUARE RSQUARE
+				 ;
+
+StatementList ::= StatementList Statement
+				  |
+				  ;
+				  
+Statement ::= (DesStat) DesignatorStatement
+			  |
+			  (StatRead) READ LPAREN Designator RPAREN SEMI
+			  |
+			  (StatPrint) PRINT LPAREN Expr RPAREN SEMI
+			  |
+			  (StatPrintMulti) PRINT LPAREN Expr COMMA NUMCONST:val RPAREN SEMI
+			  |
+			  (ReturnNoExpr) RETURN SEMI
+			  |
+			  (ReturnExpr) RETURN Expr SEMI
+			  |
+			  (GotoLab) GOTO IDENT:lab SEMI
+			  |
+			  (Lab) IDENT:lab COL
+			  ;
+			  
+DesignatorStatement ::= (DeStatEqu) Designator EQUAL Expr SEMI
+					    | 
+					    (DeStatEquError) Designator EQUAL error SEMI
+					    | 
+					    (DeStatInc) Designator INC SEMI
+					    | 
+					    (DeStatDec) Designator DEC SEMI
+					    | 
+					    (DeStatFCall) Designator LPAREN ActPars RPAREN SEMI
+					    ;
+					    
+Designator ::= (DesignatorVar) IDENT:name
+			   |
+			   (DesignatorMulti) Designator DOT IDENT:name
+			   |
+			   (DesignatorArray) DesignatorArrayHelp LSQUARE Expr RSQUARE
+			   ;
+			   
+DesignatorArrayHelp ::= (DesignatorArrayHelp) Designator
+				;		   
+			   
+ActPars ::= (ActParsList) ExprList
+			|
+			(ActParsNoList)
+			;
+			
+ExprList ::= (ExprArray) ExprList COMMA Expr
+			 |
+			 (ExprNoArray) Expr
+			 ;
+
+CondFact ::= (CondFactRelop) ExprElem Relop ExprElem
+			 |
+			 (CondFactNoRelop) ExprElem
+			 ;
+			 			
+Expr ::= (ExprSimple) ExprElem 
+		 |
+		 (ExprTernar) CondFact QUE Expr ExprCol Expr 
+		 ;
+		 
+ExprCol ::= (ExprCol) COL
+		;
+		 
+ExprElem ::= (ExprAddop) ExprElem Addop Term 
+			 |
+			 (ExprTerm) Term 
+			 |
+			 (ExprTermMinus) MINUS Term 
+			 ;
+
+Term ::= (TermMulop) Term Mulop Factor 
+		 |
+		 (TermFactor) Factor 
+		 ;
+		 
+Factor ::= (FactorConst) ConstElemExt 
+		   |
+		   (FactorExpr) LPAREN Expr RPAREN 
+		   |
+		   (FactorNewArray) NEW Type LSQUARE Expr RSQUARE 
+		   |
+		   (FactorActPars) Designator LPAREN ActPars RPAREN 
+		   |
+		   (FactorDesignator) Designator 
+		   |
+		   (FactorAt) Designator AT Factor 
+		   |
+		   (FactorMax) VLINE Expr REPL Expr REPL Expr VLINE 
+		   |
+		   (FactorHash) LSQUARE Expr HASH Expr RSQUARE
+		   |
+		   (FactorDol) DOL Factor
+		   |
+		   (FactorCap) CAP Designator
+		   ;
+		   
+Addop ::= (AddopPlus) PLUS
+		  |
+		  (AddopMinus) MINUS
+		  ;
+		  
+Mulop ::= (MulopMul) MUL
+		  |
+		  (MulopMod) MOD
+		  |
+		  (MulopDiv) DIV
+		  ;
+
+Relop ::= (RelopGt) GT
+		  | 
+		  (RelopLt) LT
+		  |
+		  (RelopGe) GE
+		  |
+		  (RelopLe) LE
+		  |
+		  (RelopEq) EQ
+		  |
+		  (RelopNe) NE
+		  ;

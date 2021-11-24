@@ -1,0 +1,86 @@
+// Test301
+
+program test301
+
+	const int nula = 0;
+	const int jedan = 1;
+	const int pet = 5;
+
+	int niz[];
+	char nizch[];
+//  bool nizbool[];
+	
+{
+	void main()	
+		int bodovi;
+		bool bt;
+	{
+		bodovi = 0 9;
+		bodovi++;
+		bodovi = bodovi + jedan;
+		bodovi = bodovi * pet;
+		bodovi--;
+		print(bodovi); 
+			
+		
+		niz = new int[3];
+		niz[nula] = jedan;
+		niz[1] = 2;
+		niz[niz[jedan]] = niz[niz[0]] * 3;
+		bodovi = niz[2]/niz[0];
+		print(bodovi);
+		niz[2]++; 
+		print(niz[2]);
+		
+//		goto lab;
+	
+		nizch = new char[3];
+		nizch[0] = 'a';
+		nizch[jedan] = 'b';
+		nizch[pet - 3] = 'c';
+		print(nizch[1]);
+		print(nizch[jedan * 2]);
+			
+//		lab:
+
+		bodovi = bodovi + (pet * jedan - 1) * bodovi - (3 % 2 + 3 * 2 - 3); 
+		print(bodovi);
+			
+		read(bodovi);
+		bt = true;
+		
+		print(bt ? bodovi : bodovi + 10);
+		print(false ? bodovi + 20 : bodovi + 30);
+		print(bodovi > 10 ? bodovi < 15 ? '+' : '*' : '-');
+		
+//		print(niz @ 2 * 4);
+		
+//		print(|niz @ 2 ! 3 ! 12| * 4);
+		
+//		print(^niz[0]);
+		
+		
+//		print([['A'#28]#-3]);
+		
+//		nizch = $1094861636;
+		
+//		print(nizch[0]);
+//		print(nizch[1]);
+//		print(nizch[2]);
+//		print(nizch[3]);
+		
+//		nizbool = new bool[8];
+//		nizbool[0] = false;
+//		nizbool[1] = true;
+//		nizbool[2] = false;
+//		nizbool[3] = true;
+//		nizbool[4] = true;
+//		nizbool[5] = false;
+//		nizbool[6] = true;
+//		nizbool[7] = false;
+		
+//		print(^nizbool);
+	}
+}
+
+

@@ -1,0 +1,303 @@
+package rs.ac.bg.etf.pp1;
+
+import java_cup.runtime.*;
+import org.apache.log4j.*;
+
+// import java.io.*;
+import rs.ac.bg.etf.pp1.ast.*;
+
+
+parser code {:
+	
+	boolean errorDetected = false;
+	
+	Logger log = Logger.getLogger(getClass());
+   
+   
+    // slede redefinisani metodi za prijavu gresaka radi izmene teksta poruke
+     
+    public void report_fatal_error(String message, Object info) throws java.lang.Exception {
+      done_parsing();
+      report_error(message, info);
+    }
+  
+    public void syntax_error(Symbol cur_token) {
+        report_error("\nSintaksna greska", cur_token);
+    }
+  
+    public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception {
+        report_fatal_error("Fatalna greska, parsiranje se ne moze nastaviti", cur_token);
+    }
+
+    public void report_error(String message, Object info) {
+    	errorDetected = true;
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left);
+        log.error(msg.toString());
+    }
+    
+    public void report_info(String message, Object info) {
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left);
+        log.info(msg.toString());
+    }
+    
+:}
+
+scan with {:
+	Symbol s = this.getScanner().next_token();
+	if (s != null && s.value != null) 
+		log.info(s.toString() + " " + s.value.toString());
+	return s;
+:}
+
+
+terminal PROG, LBRACE, RBRACE, SEMI, LPAREN, RPAREN, COMMA, PRINT, RETURN, PLUS, EQUAL, VOID, VLINE, REPL, HASH;
+terminal MINUS, MUL, DIV, INC, DEC, DOT, MOD, CONST, READ, NEW, QUE, COL, AT, FINAL, GOTO, DOL, CAP;
+terminal LSQUARE, RSQUARE, GT, LT, GE, LE, EQ, NE;
+terminal Integer NUMCONST ;
+terminal String IDENT ;
+terminal Character CHARCONST;
+terminal Boolean BOOLCONST;
+
+
+nonterminal Program Program;
+nonterminal MethodDeclList MethodDeclList;
+nonterminal FormParsList FormParsList;
+nonterminal StatementList StatementList;
+nonterminal ConstDecl ConstDecl;
+nonterminal VarDecl VarDecl;
+nonterminal MethodDecl MethodDecl;
+nonterminal VarDeclList VarDeclList;
+nonterminal Relop Relop;
+nonterminal DeclList DeclList;
+nonterminal DeclElem DeclElem;
+nonterminal Statement Statement;
+nonterminal DesignatorStatement DesignatorStatement;
+nonterminal TypeOrVoid TypeOrVoid;
+nonterminal ActPars ActPars;
+nonterminal OptFinal OptFinal;
+nonterminal VarElem VarElem;
+nonterminal VarList VarList;
+nonterminal ExprList ExprList;
+nonterminal Addop Addop;
+nonterminal Mulop Mulop;
+nonterminal ConstList ConstList;
+nonterminal ConstElem ConstElem;
+nonterminal FormPars FormPars;
+nonterminal FormParsElem FormParsElem;
+nonterminal DesignatorArrayHelp DesignatorArrayHelp;
+
+nonterminal rs.etf.pp1.symboltable.concepts.Obj ProgramName, MethodType, ConstElemExt, Designator, CondFact, ExprCol;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Type, Expr, ExprElem, Term, Factor;
+
+Program ::= (Program) PROG ProgramName:P1 DeclList:D2 LBRACE MethodDeclList:M3 RBRACE {: RESULT=new Program(P1, D2, M3); RESULT.setLine(P1left); :};
+
+ProgramName ::= (ProgramName) IDENT:name {: RESULT=new ProgramName(name); RESULT.setLine(nameleft); :};
+
+Type ::= (Type) IDENT:name {: RESULT=new Type(name); RESULT.setLine(nameleft); :};
+
+ConstDecl ::= (ConstDecl) CONST Type:T1 ConstList:C2 SEMI {: RESULT=new ConstDecl(T1, C2); RESULT.setLine(T1left); :}; 
+
+ConstList ::= ConstList:C1 COMMA ConstElem:C2 {: RESULT=new ConstListDerived1(C1, C2); RESULT.setLine(C1left); :} 
+			  |
+			  ConstElem:C1 {: RESULT=new ConstListDerived2(C1); RESULT.setLine(C1left); :}
+			  ;
+
+// visit za Tab.insert(Obj.Con, name, currentType).setAdr(val)			  
+ConstElem ::= (ConstElem) IDENT:name EQUAL ConstElemExt:C1 {: RESULT=new ConstElem(name, C1); RESULT.setLine(nameleft); :};
+			  
+ConstElemExt ::= (NumberConst) NUMCONST:val {: RESULT=new NumberConst(val); RESULT.setLine(valleft); :}
+			     |
+			     (CharConst) CHARCONST:val {: RESULT=new CharConst(val); RESULT.setLine(valleft); :}
+			     |
+			     (BoolConst) BOOLCONST:val {: RESULT=new BoolConst(val); RESULT.setLine(valleft); :}
+			     ; 
+
+VarDecl ::= (VarDeclNoError) OptFinal:O1 Type:T2 VarList:V3 SEMI {: RESULT=new VarDeclNoError(O1, T2, V3); RESULT.setLine(O1left); :} 
+			|
+			(VarDeclError) OptFinal:O1 Type:T2 error SEMI {: RESULT=new VarDeclError(O1, T2); RESULT.setLine(O1left); :}
+			;
+			
+OptFinal ::= (YesOptFinal) FINAL {: RESULT=new YesOptFinal(); :}
+			|
+			 (NoOptFinal) {: RESULT=new NoOptFinal(); :}
+			;
+
+// 2 visit-a za izvedene klase za Tab.insert(Obj.Var, name, type)
+VarElem ::= (VarElemNoArray) IDENT:name {: RESULT=new VarElemNoArray(name); RESULT.setLine(nameleft); :} // type = currentType
+			|
+			(VarElemArray) IDENT:name LSQUARE RSQUARE {: RESULT=new VarElemArray(name); RESULT.setLine(nameleft); :} // type = new Struct(Struct.Array, currentType)
+			;
+
+VarList ::= VarList:V1 COMMA VarElem:V2 {: RESULT=new VarListDerived1(V1, V2); RESULT.setLine(V1left); :}
+			|
+			(VarListError) error COMMA VarElem:V1 {: RESULT=new VarListError(V1); RESULT.setLine(V1left); :}
+			|
+			VarElem:V1 {: RESULT=new VarListDerived2(V1); RESULT.setLine(V1left); :}
+			;
+
+DeclElem ::= ConstDecl:C1 {: RESULT=new DeclElemDerived1(C1); RESULT.setLine(C1left); :} | VarDecl:V1 {: RESULT=new DeclElemDerived2(V1); RESULT.setLine(V1left); :};
+
+DeclList ::= DeclList:D1 DeclElem:D2 {: RESULT=new DeclListDerived1(D1, D2); RESULT.setLine(D1left); :}
+			 | {: RESULT=new DeclListDerived2(); :}
+			 ;
+			 
+MethodDeclList ::= MethodDeclList:M1 MethodDecl:M2 {: RESULT=new MethodDeclListDerived1(M1, M2); RESULT.setLine(M1left); :}
+				  | {: RESULT=new MethodDeclListDerived2(); :}
+				  ;
+				 
+MethodDecl ::= (MethodDecl) MethodType:M1 LPAREN FormPars:F2 RPAREN VarDeclList:V3 LBRACE StatementList:S4 RBRACE {: RESULT=new MethodDecl(M1, F2, V3, S4); RESULT.setLine(M1left); :}
+				;
+
+VarDeclList ::= VarDeclList:V1 VarDecl:V2 {: RESULT=new VarDeclListDerived1(V1, V2); RESULT.setLine(V1left); :}
+				| {: RESULT=new VarDeclListDerived2(); :}
+				;
+			 
+MethodType ::= (MethodType) TypeOrVoid:T1 IDENT:name {: RESULT=new MethodType(T1, name); RESULT.setLine(T1left); :}
+				;
+
+TypeOrVoid ::= (ReturnType) Type:T1 {: RESULT=new ReturnType(T1); RESULT.setLine(T1left); :}
+			   |
+			   (ReturnVoid) VOID {: RESULT=new ReturnVoid(); :}
+			   ;
+
+FormPars ::= (FormParams) FormParsList:F1 {: RESULT=new FormParams(F1); RESULT.setLine(F1left); :}
+			 |
+			 (NoFormParams) {: RESULT=new NoFormParams(); :}
+			 ;
+			 
+FormParsList ::= FormParsList:F1 COMMA FormParsElem:F2 {: RESULT=new FormParsListDerived1(F1, F2); RESULT.setLine(F1left); :}
+			     |
+			     FormParsElem:F1 {: RESULT=new FormParsListDerived2(F1); RESULT.setLine(F1left); :}
+			     ;
+			     
+FormParsElem ::= (FormParsDeclnoArray) Type:T1 IDENT:name {: RESULT=new FormParsDeclnoArray(T1, name); RESULT.setLine(T1left); :}
+				 |
+				 (FormParsDeclArray) Type:T1 IDENT:name LSQUARE RSQUARE {: RESULT=new FormParsDeclArray(T1, name); RESULT.setLine(T1left); :}
+				 ;
+
+StatementList ::= StatementList:S1 Statement:S2 {: RESULT=new StatementListDerived1(S1, S2); RESULT.setLine(S1left); :}
+				  | {: RESULT=new StatementListDerived2(); :}
+				  ;
+				  
+Statement ::= (DesStat) DesignatorStatement:D1 {: RESULT=new DesStat(D1); RESULT.setLine(D1left); :}
+			  |
+			  (StatRead) READ LPAREN Designator:D1 RPAREN SEMI {: RESULT=new StatRead(D1); RESULT.setLine(D1left); :}
+			  |
+			  (StatPrint) PRINT LPAREN Expr:E1 RPAREN SEMI {: RESULT=new StatPrint(E1); RESULT.setLine(E1left); :}
+			  |
+			  (StatPrintMulti) PRINT LPAREN Expr:E1 COMMA NUMCONST:val RPAREN SEMI {: RESULT=new StatPrintMulti(E1, val); RESULT.setLine(E1left); :}
+			  |
+			  (ReturnNoExpr) RETURN SEMI {: RESULT=new ReturnNoExpr(); :}
+			  |
+			  (ReturnExpr) RETURN Expr:E1 SEMI {: RESULT=new ReturnExpr(E1); RESULT.setLine(E1left); :}
+			  |
+			  (GotoLab) GOTO IDENT:lab SEMI {: RESULT=new GotoLab(lab); RESULT.setLine(lableft); :}
+			  |
+			  (Lab) IDENT:lab COL {: RESULT=new Lab(lab); RESULT.setLine(lableft); :}
+			  ;
+			  
+DesignatorStatement ::= (DeStatEqu) Designator:D1 EQUAL Expr:E2 SEMI {: RESULT=new DeStatEqu(D1, E2); RESULT.setLine(D1left); :}
+					    | 
+					    (DeStatEquError) Designator:D1 EQUAL error SEMI {: RESULT=new DeStatEquError(D1); RESULT.setLine(D1left); :}
+					    | 
+					    (DeStatInc) Designator:D1 INC SEMI {: RESULT=new DeStatInc(D1); RESULT.setLine(D1left); :}
+					    | 
+					    (DeStatDec) Designator:D1 DEC SEMI {: RESULT=new DeStatDec(D1); RESULT.setLine(D1left); :}
+					    | 
+					    (DeStatFCall) Designator:D1 LPAREN ActPars:A2 RPAREN SEMI {: RESULT=new DeStatFCall(D1, A2); RESULT.setLine(D1left); :}
+					    ;
+					    
+Designator ::= (DesignatorVar) IDENT:name {: RESULT=new DesignatorVar(name); RESULT.setLine(nameleft); :}
+			   |
+			   (DesignatorMulti) Designator:D1 DOT IDENT:name {: RESULT=new DesignatorMulti(D1, name); RESULT.setLine(D1left); :}
+			   |
+			   (DesignatorArray) DesignatorArrayHelp:D1 LSQUARE Expr:E2 RSQUARE {: RESULT=new DesignatorArray(D1, E2); RESULT.setLine(D1left); :}
+			   ;
+			   
+DesignatorArrayHelp ::= (DesignatorArrayHelp) Designator:D1 {: RESULT=new DesignatorArrayHelp(D1); RESULT.setLine(D1left); :}
+				;		   
+			   
+ActPars ::= (ActParsList) ExprList:E1 {: RESULT=new ActParsList(E1); RESULT.setLine(E1left); :}
+			|
+			(ActParsNoList) {: RESULT=new ActParsNoList(); :}
+			;
+			
+ExprList ::= (ExprArray) ExprList:E1 COMMA Expr:E2 {: RESULT=new ExprArray(E1, E2); RESULT.setLine(E1left); :}
+			 |
+			 (ExprNoArray) Expr:E1 {: RESULT=new ExprNoArray(E1); RESULT.setLine(E1left); :}
+			 ;
+
+CondFact ::= (CondFactRelop) ExprElem:E1 Relop:R2 ExprElem:E3 {: RESULT=new CondFactRelop(E1, R2, E3); RESULT.setLine(E1left); :}
+			 |
+			 (CondFactNoRelop) ExprElem:E1 {: RESULT=new CondFactNoRelop(E1); RESULT.setLine(E1left); :}
+			 ;
+			 			
+Expr ::= (ExprSimple) ExprElem:E1 {: RESULT=new ExprSimple(E1); RESULT.setLine(E1left); :} // .struct = ExprElem.struct
+		 |
+		 (ExprTernar) CondFact:C1 QUE Expr:E2 ExprCol:E3 Expr:E4 {: RESULT=new ExprTernar(C1, E2, E3, E4); RESULT.setLine(C1left); :} // Expr 1 i 2 istog tipa, pa je to i rezultat
+		 ;
+		 
+ExprCol ::= (ExprCol) COL {: RESULT=new ExprCol(); :}
+		;
+		 
+ExprElem ::= (ExprAddop) ExprElem:E1 Addop:A2 Term:T3 {: RESULT=new ExprAddop(E1, A2, T3); RESULT.setLine(E1left); :} // odradjeno
+			 |
+			 (ExprTerm) Term:T1 {: RESULT=new ExprTerm(T1); RESULT.setLine(T1left); :} // .struct = Term.struct
+			 |
+			 (ExprTermMinus) MINUS Term:T1 {: RESULT=new ExprTermMinus(T1); RESULT.setLine(T1left); :} // analogno kao ExprAddop, samo za 1 operand
+			 ;
+
+Term ::= (TermMulop) Term:T1 Mulop:M2 Factor:F3 {: RESULT=new TermMulop(T1, M2, F3); RESULT.setLine(T1left); :} // analogno kao ExprAddop
+		 |
+		 (TermFactor) Factor:F1 {: RESULT=new TermFactor(F1); RESULT.setLine(F1left); :} // .struct = Factor.struct
+		 ;
+		 
+Factor ::= (FactorConst) ConstElemExt:C1 {: RESULT=new FactorConst(C1); RESULT.setLine(C1left); :} // .struct = ConstElemExt.obj.getType()
+		   |
+		   (FactorExpr) LPAREN Expr:E1 RPAREN {: RESULT=new FactorExpr(E1); RESULT.setLine(E1left); :} // .struct = Expr.struct
+		   |
+		   (FactorNewArray) NEW Type:T1 LSQUARE Expr:E2 RSQUARE {: RESULT=new FactorNewArray(T1, E2); RESULT.setLine(T1left); :} // .struct = new Struct(Struct.Array, currentType)
+		   |
+		   (FactorActPars) Designator:D1 LPAREN ActPars:A2 RPAREN {: RESULT=new FactorActPars(D1, A2); RESULT.setLine(D1left); :} // ne treba
+		   |
+		   (FactorDesignator) Designator:D1 {: RESULT=new FactorDesignator(D1); RESULT.setLine(D1left); :} // .struct = Designator.obj.getType()
+		   |
+		   (FactorAt) Designator:D1 AT Factor:F2 {: RESULT=new FactorAt(D1, F2); RESULT.setLine(D1left); :} // niz @ 2 * 4
+		   |
+		   (FactorMax) VLINE Expr:E1 REPL Expr:E2 REPL Expr:E3 VLINE {: RESULT=new FactorMax(E1, E2, E3); RESULT.setLine(E1left); :} // | 2 ! a ! a + 10 | * 5
+		   |
+		   (FactorHash) LSQUARE Expr:E1 HASH Expr:E2 RSQUARE {: RESULT=new FactorHash(E1, E2); RESULT.setLine(E1left); :}
+		   |
+		   (FactorDol) DOL Factor:F1 {: RESULT=new FactorDol(F1); RESULT.setLine(F1left); :}
+		   |
+		   (FactorCap) CAP Designator:D1 {: RESULT=new FactorCap(D1); RESULT.setLine(D1left); :}
+		   ;
+		   
+Addop ::= (AddopPlus) PLUS {: RESULT=new AddopPlus(); :}
+		  |
+		  (AddopMinus) MINUS {: RESULT=new AddopMinus(); :}
+		  ;
+		  
+Mulop ::= (MulopMul) MUL {: RESULT=new MulopMul(); :}
+		  |
+		  (MulopMod) MOD {: RESULT=new MulopMod(); :}
+		  |
+		  (MulopDiv) DIV {: RESULT=new MulopDiv(); :}
+		  ;
+
+Relop ::= (RelopGt) GT {: RESULT=new RelopGt(); :}
+		  | 
+		  (RelopLt) LT {: RESULT=new RelopLt(); :}
+		  |
+		  (RelopGe) GE {: RESULT=new RelopGe(); :}
+		  |
+		  (RelopLe) LE {: RESULT=new RelopLe(); :}
+		  |
+		  (RelopEq) EQ {: RESULT=new RelopEq(); :}
+		  |
+		  (RelopNe) NE {: RESULT=new RelopNe(); :}
+		  ;
